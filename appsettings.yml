@@ -1,0 +1,6 @@
+mqtt:
+  host: localhost # Set your MQTT broker host here
+logging:
+  logLevel:
+    default: Information
+    microsoft.hosting.lifetime: Information
