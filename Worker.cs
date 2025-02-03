@@ -3,7 +3,7 @@ using System.Net.Mqtt;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
-using Serilog;
+using Spectre.Console;
 
 namespace zoom_detector;
 
@@ -15,42 +15,48 @@ public class Worker( IOptions<MqttConfig> mqttConfigOptions)
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        Console.CancelKeyPress += async (_, _) =>
+        await AnsiConsole.Status().Spinner(Spinner.Known.Dots).StartAsync("Monitoring for Zoom meetings...", async context =>
         {
-            Log.Information("Stopping...");
+            context.SpinnerStyle(Style.Parse("green"));
+            Console.CancelKeyPress += async (_, _) =>
+            {
+                context.Status("Stopping...");
+                context.SpinnerStyle(Style.Parse("red"));
+                await SendClearMessageAsync();
+                _client?.Dispose();
+            };
+        
+            var previousMeetingState = MeetingState.NotRunning;
+            var firstRun = true;
+            _client = await MqttClient.CreateAsync(_host, new MqttConfiguration());
+            await _client.ConnectAsync();
+
+            await SendInitialMessageAsync();
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                var isMeetingRunning = ZoomService.IsMeetingRunning();
+                if ((firstRun || previousMeetingState == MeetingState.NotRunning) && isMeetingRunning)
+                {
+                    firstRun = false;
+                    previousMeetingState = MeetingState.Running;
+                    LogMarkup("[red]In a meeting[/]");
+                    await SendMeetingRunningMessageAsync();
+                }
+                else if (firstRun || previousMeetingState == MeetingState.Running && !isMeetingRunning)
+                {
+                    firstRun = false;
+                    previousMeetingState = MeetingState.NotRunning;
+                    LogMarkup("[green]Free[/]");
+                    await SendClearMessageAsync();
+                }
+            
+                await Task.Delay(5000, stoppingToken);
+            }
+
             await SendClearMessageAsync();
             _client?.Dispose();
-        };
+        });
         
-        var previousMeetingState = MeetingState.NotRunning;
-        var firstRun = true;
-        _client = await MqttClient.CreateAsync(_host, new MqttConfiguration());
-        await _client.ConnectAsync();
-
-        await SendInitialMessageAsync();
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            var isMeetingRunning = ZoomService.IsMeetingRunning();
-            if ((firstRun || previousMeetingState == MeetingState.NotRunning) && isMeetingRunning)
-            {
-                firstRun = false;
-                previousMeetingState = MeetingState.Running;
-                Log.Information("Meeting is running");
-                await SendMeetingRunningMessageAsync();
-            }
-            else if (firstRun || previousMeetingState == MeetingState.Running && !isMeetingRunning)
-            {
-                firstRun = false;
-                previousMeetingState = MeetingState.NotRunning;
-                Log.Information("Meeting is not running");
-                await SendClearMessageAsync();
-            }
-            
-            await Task.Delay(5000, stoppingToken);
-        }
-
-        await SendClearMessageAsync();
-        _client?.Dispose();
     }
 
     private async Task SendMeetingRunningMessageAsync()
@@ -64,7 +70,6 @@ public class Worker( IOptions<MqttConfig> mqttConfigOptions)
     private async Task SendInitialMessageAsync()
     {
         const string text = "Monitoring for Zoom Meetings";
-        Log.Information(text);
         var payload = new Dictionary<string, string>();
         payload.Add("bg_color", "green");
         payload.Add("text", text);
@@ -85,5 +90,10 @@ public class Worker( IOptions<MqttConfig> mqttConfigOptions)
         var message = new MqttApplicationMessage("/ticker1", Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload)));
         Debug.Assert(_client != null, nameof(_client) + " != null");
         if (_client != null) await _client.PublishAsync(message, MqttQualityOfService.ExactlyOnce, false);
+    }
+    
+    private void LogMarkup(string markup)
+    {
+        AnsiConsole.MarkupLine($"{DateTimeOffset.Now:HH:mm:ss} - {markup}");
     }
 }
