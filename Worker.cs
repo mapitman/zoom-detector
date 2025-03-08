@@ -12,6 +12,7 @@ public class Worker( IOptions<MqttConfig> mqttConfigOptions)
 {
     private readonly string _host = mqttConfigOptions.Value.Host;
     private IMqttClient? _client;
+    DateTimeOffset _lastDatePrinted = DateTimeOffset.MinValue;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -94,6 +95,13 @@ public class Worker( IOptions<MqttConfig> mqttConfigOptions)
     
     private void LogMarkup(string markup)
     {
-        AnsiConsole.MarkupLine($"{DateTimeOffset.Now:HH:mm:ss} - {markup}");
+        var now = DateTimeOffset.Now;
+        if (_lastDatePrinted.Day != now.Day)
+        {
+            AnsiConsole.MarkupLine($"[bold]{now:yyyy-MM-dd ddd}[/]");
+            _lastDatePrinted = now;
+        }
+        
+        AnsiConsole.MarkupLine($"{now:HH:mm:ss} - {markup}");
     }
 }
