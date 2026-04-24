@@ -1,18 +1,35 @@
-using System.Diagnostics;
 using System.Net.Mqtt;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Resilience;
+using Polly;
 using Spectre.Console;
 
 namespace zoom_detector;
 
-public class Worker( IOptions<MqttConfig> mqttConfigOptions)
+public class Worker(IOptions<MqttConfig> mqttConfigOptions)
     : BackgroundService
 {
     private readonly string _host = mqttConfigOptions.Value.Host;
     private IMqttClient? _client;
     DateTimeOffset _lastDatePrinted = DateTimeOffset.MinValue;
+
+    private readonly ResiliencePipeline _mqttPipeline = new ResiliencePipelineBuilder()
+        .AddRetry(new Polly.Retry.RetryStrategyOptions
+        {
+            MaxRetryAttempts = 3,
+            Delay = TimeSpan.FromSeconds(2),
+            BackoffType = DelayBackoffType.Exponential,
+            UseJitter = true,
+            OnRetry = args =>
+            {
+                AnsiConsole.WriteException(args.Outcome.Exception!);
+                AnsiConsole.MarkupLine($"[yellow]MQTT publish failed — retrying (attempt {args.AttemptNumber + 1})...[/]");
+                return ValueTask.CompletedTask;
+            }
+        })
+        .Build();
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -82,15 +99,30 @@ public class Worker( IOptions<MqttConfig> mqttConfigOptions)
     private async Task SendClearMessageAsync()
     {
         var payload = new Dictionary<string, string> { { "command", "stop" } };
-        var message = new MqttApplicationMessage("/ticker1", Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload)));
-        if (_client != null) await _client.PublishAsync(message, MqttQualityOfService.ExactlyOnce, false);
+        await PublishMessageAsync(payload);
     }
 
     private async Task PublishMessageAsync(Dictionary<string, string> payload)
     {
         var message = new MqttApplicationMessage("/ticker1", Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload)));
-        Debug.Assert(_client != null, nameof(_client) + " != null");
-        if (_client != null) await _client.PublishAsync(message, MqttQualityOfService.ExactlyOnce, false);
+        try
+        {
+            await _mqttPipeline.ExecuteAsync(async _ =>
+            {
+                if (_client is null || !_client.IsConnected)
+                {
+                    _client?.Dispose();
+                    _client = await MqttClient.CreateAsync(_host, new MqttConfiguration());
+                    await _client.ConnectAsync();
+                }
+                await _client.PublishAsync(message, MqttQualityOfService.ExactlyOnce, false);
+            });
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.WriteException(ex);
+            LogMarkup("[red]MQTT publish failed after all retries — skipping[/]");
+        }
     }
     
     private void LogMarkup(string markup)
