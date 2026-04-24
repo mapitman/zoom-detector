@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Net.Mqtt;
 using System.Text;
 using System.Text.Json;
@@ -89,8 +88,19 @@ public class Worker( IOptions<MqttConfig> mqttConfigOptions)
     private async Task PublishMessageAsync(Dictionary<string, string> payload)
     {
         var message = new MqttApplicationMessage("/ticker1", Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload)));
-        Debug.Assert(_client != null, nameof(_client) + " != null");
-        if (_client != null) await _client.PublishAsync(message, MqttQualityOfService.ExactlyOnce, false);
+        try
+        {
+            if (_client != null) await _client.PublishAsync(message, MqttQualityOfService.ExactlyOnce, false);
+        }
+        catch (Exception ex)
+        {
+            LogMarkup("[yellow]MQTT publish failed — reconnecting...[/]");
+            AnsiConsole.WriteException(ex);
+            _client?.Dispose();
+            _client = await MqttClient.CreateAsync(_host, new MqttConfiguration());
+            await _client.ConnectAsync();
+            await _client.PublishAsync(message, MqttQualityOfService.ExactlyOnce, false);
+        }
     }
     
     private void LogMarkup(string markup)
