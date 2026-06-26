@@ -1,5 +1,3 @@
-.PHONY: build publish clean
-
 build:
 	dotnet build
 
