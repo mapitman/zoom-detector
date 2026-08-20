@@ -1,8 +1,8 @@
 [Unit]
 Description=Publish Zoom meeting state to an MQTT broker
 Documentation=https://github.com/mapitman/zoom-detector
-# Wait for a network before connecting to the broker. This is a user unit, so
-# it targets the user-level network hook rather than network-online.target.
+# Start once the user session is up, which is the point at which a user unit
+# has a network and can reach the broker.
 After=default.target
 
 [Service]

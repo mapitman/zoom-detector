@@ -3,12 +3,12 @@
     Registers zoom-detector to run at logon as a hidden background task.
 
 .DESCRIPTION
-    Uses Task Scheduler rather than a Windows service. A service runs in
-    session 0, where it cannot see the Zoom process belonging to the logged-in
-    user, so meeting detection would never fire.
+    Registers a scheduled task that starts at logon. The task runs in the
+    user's own session with an interactive token, which is what lets it see the
+    Zoom process it needs to detect.
 
-    The task runs under the current user with no window. Output goes to the
-    program's own rolling log file under %LOCALAPPDATA%\zoom-detector\logs.
+    The task runs with no window. Output goes to the program's own rolling log
+    file under %LOCALAPPDATA%\zoom-detector\logs.
 
 .EXAMPLE
     .\install-windows.ps1
@@ -49,8 +49,8 @@ $action = New-ScheduledTaskAction `
 
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 
-# Interactive token, so the task can see the user's Zoom process. Highest
-# privileges are not needed and are deliberately not requested.
+# An interactive token in the user's session, which is what lets the task see
+# the user's Zoom process. Limited privileges are enough for that.
 $principal = New-ScheduledTaskPrincipal `
     -UserId "$env:USERDOMAIN\$env:USERNAME" `
     -LogonType Interactive `
