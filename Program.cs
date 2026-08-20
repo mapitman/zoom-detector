@@ -1,4 +1,6 @@
 using Serilog;
+using Serilog.Configuration;
+using Serilog.Settings.Configuration;
 
 namespace zoom_detector;
 
@@ -26,6 +28,9 @@ public class Program
             // setting in appsettings.yml overrides the platform default.
             var logPath = LogPath.Resolve(builder.Configuration["logging:directory"]);
 
+            var serilogReaderOptions = new ConfigurationReaderOptions(
+                typeof(FileLoggerConfigurationExtensions).Assembly);
+
             builder.Logging.ClearProviders();
             builder.Services.AddSerilog(configuration => configuration
                 // A serilog section in appsettings.yml can override this, but
@@ -33,7 +38,10 @@ public class Program
                 .MinimumLevel.Information()
                 .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
                 .MinimumLevel.Override("System", Serilog.Events.LogEventLevel.Warning)
-                .ReadFrom.Configuration(builder.Configuration)
+                // Name the sink assembly explicitly. Serilog otherwise scans
+                // loaded assemblies to find sinks, which finds nothing in a
+                // single-file publish and throws at startup.
+                .ReadFrom.Configuration(builder.Configuration, serilogReaderOptions)
                 .WriteTo.File(
                     logPath,
                     rollingInterval: RollingInterval.Day,
