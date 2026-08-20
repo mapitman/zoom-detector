@@ -87,9 +87,6 @@ _install-macos:
 	launchctl load "$agent"
 
 	echo "Loaded local.zoom-detector"
-	echo
-	echo "If zoom-detector is still a login item, remove it in"
-	echo "System Settings > General > Login Items, or two copies will run."
 
 # Install the systemd user unit and start it.
 [private]
