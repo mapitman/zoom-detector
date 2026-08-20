@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>local.zoom-detector</string>
+
+    <!-- launchd does not expand ~ or $HOME in ProgramArguments, so run the
+         program through a shell that does. --daemon switches the program from
+         its Spectre.Console display to a rolling log file, which it writes to
+         ~/Library/Logs/zoom-detector/ itself. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>exec "$HOME/.local/bin/zoom-detector" --daemon</string>
+    </array>
+
+    <!-- The program reads appsettings.yml from the working directory, so this
+         must be the directory holding the binary. Without it the program
+         throws on startup and launchd restarts it in a loop. -->
+    <key>WorkingDirectory</key>
+    <string>/Users/mark.pitman/.local/bin</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Restart if the process exits, so a crash does not silently end
+         detection. Wait 30 seconds between attempts, which also covers the
+         case where the MQTT broker is unreachable at login. -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <!-- Background work: yield CPU and I/O to whatever the user is doing. -->
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>LowPriorityIO</key>
+    <true/>
+
+    <!-- Startup failures happen before Serilog initialises, so capture them
+         separately. Normal output goes to the Serilog file, not here. -->
+    <key>StandardErrorPath</key>
+    <string>/Users/mark.pitman/Library/Logs/zoom-detector-launchd.log</string>
+</dict>
+</plist>
