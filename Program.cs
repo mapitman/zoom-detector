@@ -21,9 +21,10 @@ public class Program
 
         if (daemonMode)
         {
-            var logPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                "Library", "Logs", "zoom-detector", "zoom-detector-.log");
+            // Each operating system keeps user logs somewhere different, so
+            // resolve the path rather than hard-coding one. A logging:directory
+            // setting in appsettings.yml overrides the platform default.
+            var logPath = LogPath.Resolve(builder.Configuration["logging:directory"]);
 
             builder.Logging.ClearProviders();
             builder.Services.AddSerilog(configuration => configuration
