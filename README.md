@@ -73,9 +73,6 @@ filling in absolute paths for your home directory. launchd does not expand `~`
 or `$HOME` in the `WorkingDirectory` and `Standard*Path` keys, so those paths
 cannot be written portably. The generated file is not tracked by git.
 
-If `zoom-detector` is still a login item, remove it in System Settings >
-General > Login Items, or two copies will run.
-
 **Linux** gets a systemd user unit. It needs no generation step, because
 systemd expands `%h` to your home directory.
 
