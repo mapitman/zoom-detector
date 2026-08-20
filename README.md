@@ -11,14 +11,30 @@ a [Unicorn HAT HD](https://shop.pimoroni.com/products/unicorn-hat-hd).
 ## Running in the background on macOS
 
 By default the program shows a Spectre.Console spinner and needs a terminal.
-Pass `--daemon` (or `-d`) to swap that display for a rolling log file at
-`~/Library/Logs/zoom-detector/`, so the process can run with no terminal
-attached.
+Pass `--daemon` (or `-d`) to swap that display for a rolling log file, so the
+process can run with no terminal attached.
 
-Read the log at any time:
+Each operating system keeps user logs in a different place, so the program
+resolves the directory at startup:
+
+| Platform | Log directory |
+| --- | --- |
+| macOS | `~/Library/Logs/zoom-detector/` |
+| Linux | `$XDG_STATE_HOME/zoom-detector/log/`, or `~/.local/state/zoom-detector/log/` |
+| Windows | `%LOCALAPPDATA%\zoom-detector\logs\` |
+
+Read the log at any time. On macOS:
 
 ```sh
 tail -f ~/Library/Logs/zoom-detector/zoom-detector-*.log
+```
+
+To put the log somewhere else, set a directory in `appsettings.yml`. The value
+expands environment variables:
+
+```yaml
+logging:
+  directory: /var/log/zoom-detector
 ```
 
 Log files roll daily, cap at 10 MB each, and the last 14 are kept.
