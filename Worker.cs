@@ -2,13 +2,15 @@ using System.Net.Mqtt;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Resilience;
 using Polly;
 using Spectre.Console;
 
 namespace zoom_detector;
 
-public class Worker(IOptions<MqttConfig> mqttConfigOptions)
+public class Worker(
+    IOptions<MqttConfig> mqttConfigOptions,
+    RunMode runMode,
+    ILogger<Worker> logger)
     : BackgroundService
 {
     private readonly string _host = mqttConfigOptions.Value.Host;
@@ -24,8 +26,19 @@ public class Worker(IOptions<MqttConfig> mqttConfigOptions)
             UseJitter = true,
             OnRetry = args =>
             {
-                AnsiConsole.WriteException(args.Outcome.Exception!);
-                AnsiConsole.MarkupLine($"[yellow]MQTT publish failed — retrying (attempt {args.AttemptNumber + 1})...[/]");
+                if (runMode.IsDaemon)
+                {
+                    logger.LogWarning(
+                        args.Outcome.Exception,
+                        "MQTT publish failed — retrying (attempt {Attempt})",
+                        args.AttemptNumber + 1);
+                }
+                else
+                {
+                    AnsiConsole.WriteException(args.Outcome.Exception!);
+                    AnsiConsole.MarkupLine($"[yellow]MQTT publish failed — retrying (attempt {args.AttemptNumber + 1})...[/]");
+                }
+
                 return ValueTask.CompletedTask;
             }
         })
@@ -33,6 +46,15 @@ public class Worker(IOptions<MqttConfig> mqttConfigOptions)
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Daemon mode has no terminal, so the Spectre.Console spinner would
+        // repaint into a log file. Run the loop directly instead.
+        if (runMode.IsDaemon)
+        {
+            logger.LogInformation("Monitoring for Zoom meetings");
+            await MonitorAsync(stoppingToken);
+            return;
+        }
+
         await AnsiConsole.Status().Spinner(Spinner.Known.Dots).StartAsync("Monitoring for Zoom meetings...", async context =>
         {
             context.SpinnerStyle(Style.Parse("green"));
@@ -43,38 +65,42 @@ public class Worker(IOptions<MqttConfig> mqttConfigOptions)
                 await SendClearMessageAsync();
                 _client?.Dispose();
             };
-        
-            var previousMeetingState = MeetingState.NotRunning;
-            var firstRun = true;
-            _client = await MqttClient.CreateAsync(_host, new MqttConfiguration());
-            await _client.ConnectAsync();
 
-            await SendInitialMessageAsync();
-            while (!stoppingToken.IsCancellationRequested)
+            await MonitorAsync(stoppingToken);
+        });
+    }
+
+    private async Task MonitorAsync(CancellationToken stoppingToken)
+    {
+        var previousMeetingState = MeetingState.NotRunning;
+        var firstRun = true;
+        _client = await MqttClient.CreateAsync(_host, new MqttConfiguration());
+        await _client.ConnectAsync();
+
+        await SendInitialMessageAsync();
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            var isMeetingRunning = ZoomService.IsMeetingRunning();
+            if ((firstRun || previousMeetingState == MeetingState.NotRunning) && isMeetingRunning)
             {
-                var isMeetingRunning = ZoomService.IsMeetingRunning();
-                if ((firstRun || previousMeetingState == MeetingState.NotRunning) && isMeetingRunning)
-                {
-                    firstRun = false;
-                    previousMeetingState = MeetingState.Running;
-                    LogMarkup("[red]In a meeting[/]");
-                    await SendMeetingRunningMessageAsync();
-                }
-                else if (firstRun || previousMeetingState == MeetingState.Running && !isMeetingRunning)
-                {
-                    firstRun = false;
-                    previousMeetingState = MeetingState.NotRunning;
-                    LogMarkup("[green]Free[/]");
-                    await SendClearMessageAsync();
-                }
-            
-                await Task.Delay(5000, stoppingToken);
+                firstRun = false;
+                previousMeetingState = MeetingState.Running;
+                Report("In a meeting", "[red]In a meeting[/]");
+                await SendMeetingRunningMessageAsync();
+            }
+            else if (firstRun || previousMeetingState == MeetingState.Running && !isMeetingRunning)
+            {
+                firstRun = false;
+                previousMeetingState = MeetingState.NotRunning;
+                Report("Free", "[green]Free[/]");
+                await SendClearMessageAsync();
             }
 
-            await SendClearMessageAsync();
-            _client?.Dispose();
-        });
-        
+            await Task.Delay(5000, stoppingToken);
+        }
+
+        await SendClearMessageAsync();
+        _client?.Dispose();
     }
 
     private async Task SendMeetingRunningMessageAsync()
@@ -115,25 +141,43 @@ public class Worker(IOptions<MqttConfig> mqttConfigOptions)
                     _client = await MqttClient.CreateAsync(_host, new MqttConfiguration());
                     await _client.ConnectAsync();
                 }
+
                 await _client.PublishAsync(message, MqttQualityOfService.ExactlyOnce, false);
             });
         }
         catch (Exception ex)
         {
-            AnsiConsole.WriteException(ex);
-            LogMarkup("[red]MQTT publish failed after all retries — skipping[/]");
+            if (runMode.IsDaemon)
+            {
+                logger.LogError(ex, "MQTT publish failed after all retries — skipping");
+            }
+            else
+            {
+                AnsiConsole.WriteException(ex);
+                Report("MQTT publish failed after all retries — skipping", "[red]MQTT publish failed after all retries — skipping[/]");
+            }
         }
     }
-    
-    private void LogMarkup(string markup)
+
+    /// <summary>
+    /// Writes a state change to the log in daemon mode, or to the console with
+    /// Spectre.Console markup when running interactively.
+    /// </summary>
+    private void Report(string message, string markup)
     {
+        if (runMode.IsDaemon)
+        {
+            logger.LogInformation("{Message}", message);
+            return;
+        }
+
         var now = DateTimeOffset.Now;
         if (_lastDatePrinted.Day != now.Day)
         {
             AnsiConsole.MarkupLine($"[bold]{now:yyyy-MM-dd ddd}[/]");
             _lastDatePrinted = now;
         }
-        
+
         AnsiConsole.MarkupLine($"{now:HH:mm:ss} - {markup}");
     }
 }
