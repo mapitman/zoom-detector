@@ -64,17 +64,16 @@ in `~/.local/bin`.
 
 #### What each platform gets
 
-**macOS** gets a launch agent. A login item would not do, because it starts the
-program inside a shell session, which opens a terminal window and keeps it
-open.
+**macOS** gets a launch agent, which launchd starts at login with no terminal
+attached.
 
 The recipe generates the agent from `dist/local.zoom-detector.plist.template`,
-filling in absolute paths for your home directory. launchd does not expand `~`
-or `$HOME` in the `WorkingDirectory` and `Standard*Path` keys, so those paths
-cannot be written portably. The generated file is not tracked by git.
+filling in absolute paths for your home directory. The `WorkingDirectory` and
+`Standard*Path` keys take literal paths, so the recipe writes them out in full
+for the account it runs under. Git ignores the generated file.
 
-**Linux** gets a systemd user unit. It needs no generation step, because
-systemd expands `%h` to your home directory.
+**Linux** gets a systemd user unit, copied straight into place. systemd
+expands `%h` to your home directory, so the file works as it ships.
 
 To keep it running while you are logged out:
 
@@ -82,9 +81,9 @@ To keep it running while you are logged out:
 loginctl enable-linger "$USER"
 ```
 
-**Windows** gets a scheduled task, registered by `dist/install-windows.ps1`. A
-Windows service would run in session 0, where it cannot see the Zoom process
-belonging to the logged-in user, so detection would never fire.
+**Windows** gets a scheduled task, registered by `dist/install-windows.ps1`.
+The task runs in your own session with an interactive token, which is what lets
+it see the Zoom process it detects.
 
 #### Installing by hand
 
