@@ -18,9 +18,12 @@
 
     <!-- The program reads appsettings.yml from the working directory, so this
          must be the directory holding the binary. Without it the program
-         throws on startup and launchd restarts it in a loop. -->
+         throws on startup and launchd restarts it in a loop.
+
+         `just install` fills this in. Do not edit the generated plist: edit
+         the template and run the recipe again. -->
     <key>WorkingDirectory</key>
-    <string>/Users/mark.pitman/.local/bin</string>
+    <string>__INSTALL_DIR__</string>
 
     <key>RunAtLoad</key>
     <true/>
@@ -44,6 +47,6 @@
     <!-- Startup failures happen before Serilog initialises, so capture them
          separately. Normal output goes to the Serilog file, not here. -->
     <key>StandardErrorPath</key>
-    <string>/Users/mark.pitman/Library/Logs/zoom-detector-launchd.log</string>
+    <string>__HOME__/Library/Logs/zoom-detector-launchd.log</string>
 </dict>
 </plist>

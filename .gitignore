@@ -482,3 +482,7 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Generated from dist/local.zoom-detector.plist.template by `just install`.
+# Holds absolute paths for one machine, so not tracked.
+dist/local.zoom-detector.plist
