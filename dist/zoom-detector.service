@@ -1,0 +1,34 @@
+[Unit]
+Description=Publish Zoom meeting state to an MQTT broker
+Documentation=https://github.com/mapitman/zoom-detector
+# Wait for a network before connecting to the broker. This is a user unit, so
+# it targets the user-level network hook rather than network-online.target.
+After=default.target
+
+[Service]
+Type=simple
+
+# %h expands to the user's home directory, so this file needs no editing.
+ExecStart=%h/.local/bin/zoom-detector --daemon
+
+# The program reads appsettings.yml from its working directory.
+WorkingDirectory=%h/.local/bin
+
+# Restart on failure, and on a clean exit, so detection does not stop quietly.
+# Wait 30 seconds between attempts, which also covers the broker being
+# unreachable at login.
+Restart=always
+RestartSec=30
+
+# Background work: yield CPU to whatever the user is doing. IOSchedulingClass
+# is deliberately omitted, because it fails on kernels without a scheduler that
+# supports priorities, and that would stop the unit from starting.
+Nice=10
+
+# The program writes its own rolling log file, so keep the journal quiet.
+# Startup failures still reach the journal through stderr.
+StandardOutput=null
+StandardError=journal
+
+[Install]
+WantedBy=default.target
