@@ -34,6 +34,12 @@ stage: publish
 	mkdir -p "{{ install_dir }}"
 	cp publish/zoom-detector "{{ install_dir }}/"
 
+	# Gatekeeper rejects the ad-hoc signature dotnet publish produces and
+	# silently SIGKILLs the process on launch. Re-sign locally so it runs.
+	if [ "{{ os() }}" = "macos" ]; then
+		codesign --force --deep --sign - "{{ install_dir }}/zoom-detector"
+	fi
+
 	# The program reads appsettings.yml from its working directory. Never
 	# overwrite an existing one, because it holds the broker address.
 	if [ -f "{{ install_dir }}/appsettings.yml" ]; then
