@@ -74,9 +74,7 @@ public class Worker(
     {
         var previousMeetingState = MeetingState.NotRunning;
         var firstRun = true;
-        _client = await MqttClient.CreateAsync(_host, new MqttConfiguration());
-        await _client.ConnectAsync();
-
+        await ConnectAsync();
         await SendInitialMessageAsync();
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -101,6 +99,33 @@ public class Worker(
 
         await SendClearMessageAsync();
         _client?.Dispose();
+    }
+
+    private async Task ConnectAsync()
+    {
+        try
+        {
+            await _mqttPipeline.ExecuteAsync(async _ =>
+            {
+                _client = await MqttClient.CreateAsync(_host, new MqttConfiguration());
+                await _client.ConnectAsync();
+            });
+        }
+        catch (Exception ex)
+        {
+            // The broker can be unreachable at startup, e.g. off the home
+            // network. Log and carry on: PublishMessageAsync reconnects once
+            // it is reachable again, instead of crashing the host.
+            if (runMode.IsDaemon)
+            {
+                logger.LogError(ex, "MQTT connect failed after all retries — will retry on next publish");
+            }
+            else
+            {
+                AnsiConsole.WriteException(ex);
+                Report("MQTT connect failed after all retries — will retry on next publish", "[red]MQTT connect failed after all retries — will retry on next publish[/]");
+            }
+        }
     }
 
     private async Task SendMeetingRunningMessageAsync()
