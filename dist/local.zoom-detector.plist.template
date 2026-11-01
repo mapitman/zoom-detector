@@ -5,16 +5,19 @@
     <key>Label</key>
     <string>local.zoom-detector</string>
 
-    <!-- launchd does not expand ~ or $HOME in ProgramArguments, so run the
-         program through a shell that does. --daemon switches the program from
-         its Spectre.Console display to a rolling log file, which it writes to
-         ~/Library/Logs/zoom-detector/ itself. -->
+    <!-- Run the executable inside the app bundle directly, so macOS sees the
+         bundle's identity and can grant it Local Network access. --daemon
+         switches the program from its Spectre.Console display to a rolling
+         log file, which it writes to ~/Library/Logs/zoom-detector/ itself. -->
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/sh</string>
-        <string>-c</string>
-        <string>exec "$HOME/.local/bin/zoom-detector" --daemon</string>
+        <string>__INSTALL_DIR__/ZoomDetector.app/Contents/MacOS/zoom-detector</string>
+        <string>--daemon</string>
     </array>
+
+    <!-- Shows the agent under the app's name in Login Items. -->
+    <key>AssociatedBundleIdentifiers</key>
+    <string>local.zoom-detector</string>
 
     <!-- The program reads appsettings.yml from the working directory, so this
          must be the directory holding the binary. Without it the program

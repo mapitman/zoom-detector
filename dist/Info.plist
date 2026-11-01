@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- macOS only grants Local Network access to code with a stable identity
+         that it can prompt for. A bare launchd binary gets neither the prompt
+         nor the grant, and every connection to the broker fails with
+         "No route to host". `just stage` wraps the program in an app bundle
+         with this Info.plist so macOS can ask, and remember the answer. -->
+    <key>CFBundleIdentifier</key>
+    <string>local.zoom-detector</string>
+
+    <key>CFBundleName</key>
+    <string>ZoomDetector</string>
+
+    <key>CFBundleExecutable</key>
+    <string>zoom-detector</string>
+
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <key>CFBundleVersion</key>
+    <string>1.0</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+
+    <!-- Run without a Dock icon or menu bar. -->
+    <key>LSUIElement</key>
+    <true/>
+
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>ZoomDetector publishes your meeting status to an MQTT broker on your local network.</string>
+</dict>
+</plist>
