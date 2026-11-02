@@ -32,12 +32,22 @@ stage: publish
 	set -euo pipefail
 
 	mkdir -p "{{ install_dir }}"
-	cp publish/zoom-detector "{{ install_dir }}/"
 
-	# Gatekeeper rejects the ad-hoc signature dotnet publish produces and
-	# silently SIGKILLs the process on launch. Re-sign locally so it runs.
 	if [ "{{ os() }}" = "macos" ]; then
-		codesign --force --deep --sign - "{{ install_dir }}/zoom-detector"
+		# macOS only grants Local Network access to an app bundle, so wrap
+		# the program in one. See dist/Info.plist.
+		app="{{ install_dir }}/ZoomDetector.app"
+		rm -rf "$app"
+		mkdir -p "$app/Contents/MacOS"
+		cp dist/Info.plist "$app/Contents/"
+		cp publish/zoom-detector "$app/Contents/MacOS/"
+
+		# Gatekeeper rejects the ad-hoc signature dotnet publish produces and
+		# silently SIGKILLs the process on launch. Re-sign the whole bundle,
+		# which also gives it the identifier from Info.plist.
+		codesign --force --deep --sign - "$app"
+	else
+		cp publish/zoom-detector "{{ install_dir }}/"
 	fi
 
 	# The program reads appsettings.yml from its working directory. Never

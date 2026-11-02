@@ -67,6 +67,13 @@ in `~/.local/bin`.
 **macOS** gets a launch agent, which launchd starts at login with no terminal
 attached.
 
+On macOS, `just stage` wraps the program in `~/.local/bin/ZoomDetector.app`.
+macOS only grants Local Network access to an app bundle. A bare binary never
+gets the permission prompt, and every connection to the broker fails with
+"No route to host". The first time the agent starts, macOS asks whether
+ZoomDetector may find devices on your local network. Allow it. To change the
+answer later, open System Settings > Privacy & Security > Local Network.
+
 The recipe generates the agent from `dist/local.zoom-detector.plist.template`,
 filling in absolute paths for your home directory. The `WorkingDirectory` and
 `Standard*Path` keys take literal paths, so the recipe writes them out in full
